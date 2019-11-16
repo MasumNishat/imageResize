@@ -1,4 +1,5 @@
 <?php
+namespace MasumNishat\imageResize;
 //todo: final size is wrong
 class imageResize {
     public static $targetSize = 250000;
