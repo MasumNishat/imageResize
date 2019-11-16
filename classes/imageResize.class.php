@@ -1,8 +1,13 @@
 <?php
+//todo: final size is wrong
 class imageResize {
     public static $targetSize = 250000;
     public static $tempDir = '';
-    public static $minPercent = 20;
+    public static $dimension = [];
+    public static $originalSize;
+    public static $size;
+
+    private static $minPercent = 20;
     private static $currentPercent;
     private static $intervalPercent = 20;
     private static $originalFile = '';
@@ -13,10 +18,13 @@ class imageResize {
         'tmp-2',
         'tmp-3'
     ];
-    private static $dimension = [];
-    private static $size;
 
 
+
+    /**
+     * @param $file
+     * @param $target
+     */
     public static function convert ($file, $target){
         if (self::$tempDir == ''){
             $tempDirDelete = true;
@@ -27,13 +35,13 @@ class imageResize {
         self::$tempDir = microtime().rand(0, 1000);
         self::$targetFile = $target;
         @mkdir(self::$tempDir);
-        self::$size = filesize(self::$originalFile);
-        if (self::$size>self::$targetSize){
+        self::$originalSize = filesize(self::$originalFile);
+        if (self::$originalSize>self::$targetSize){
             self::$currentPercent = self::$minPercent;
             self::compress();
         } else {
             self::$dimension = getimagesize(self::$originalFile);
-            self::$ext = (self::$dimension['mime'] == 'image/jpeg'? ".jpg" : (self::$dimension['mime'] == 'image/png'? '.png':'.gif'));
+            self::getExt();
             copy(self::$tempDir.DIRECTORY_SEPARATOR.self::$testFile[2].self::$ext, self::$targetFile.self::$ext);
         }
         if ($tempDirDelete){
@@ -41,7 +49,7 @@ class imageResize {
         }
     }
 
-    public static function delete_files($target) {
+    private static function delete_files($target) {
         if(is_dir($target)){
             $files = glob( $target .DIRECTORY_SEPARATOR. '*', GLOB_MARK );
             foreach( $files as $file ){
@@ -53,11 +61,21 @@ class imageResize {
         }
     }
 
+    private static function getExt(){
+        $parts = explode('.', self::$targetFile);
+        $ext = array_pop($parts);
+        self::$ext = (self::$dimension['mime'] == 'image/jpeg'? ".jpg" : (self::$dimension['mime'] == 'image/png'? '.png':'.gif'));
+        //check if there is extension and also use case sensitivity
+        if ('.'.strtolower($ext) == self::$ext){
+            self::$ext = '';
+        }
+    }
+
     private static function compress (){
         for (self::$currentPercent;self::$currentPercent<100; self::$currentPercent=self::$currentPercent+self::$intervalPercent){
             clearstatcache();
             self::$dimension = getimagesize(self::$originalFile);
-            self::$ext = (self::$dimension['mime'] == 'image/jpeg'? ".jpg" : (self::$dimension['mime'] == 'image/png'? '.png':'.gif'));
+            self::getExt();
             $width = self::$dimension[0]*(100-self::$currentPercent)/100;
             self::resize($width, self::$tempDir.DIRECTORY_SEPARATOR.self::$testFile[0], self::$originalFile);
             self::$size = filesize(self::$tempDir.DIRECTORY_SEPARATOR.self::$testFile[0].self::$ext);
