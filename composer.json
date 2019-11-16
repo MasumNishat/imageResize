@@ -1,5 +1,5 @@
 {
-  "name": "MasumNishat/imageResize",
+  "name": "masum-nishat/image-resize-php",
   "description": "Resize image to desire file size by only one compression",
   "type": "package",
   "require": {
