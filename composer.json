@@ -1,0 +1,22 @@
+{
+  "name": "MasumNishat/imageResize",
+  "description": "Resize image to desire file size by only one compression",
+  "type": "package",
+  "require": {
+    "php": ">=7.2.0"
+  },
+  "license": "mit",
+  "authors": [
+    {
+      "name": "Al Masum Nishat",
+      "email": "masum.nishat21@gmail.com",
+      "homepage": "https://github.com/MasumNishat/imageResize"
+    }
+  ],
+  "minimum-stability": "dev",
+  "autoload": {
+    "psr-4": {
+      "MasumNishat\\imageResize\\": "classes/"
+    }
+  }
+}
