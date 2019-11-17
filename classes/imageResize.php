@@ -41,12 +41,14 @@ class imageResize {
             self::$currentPercent = self::$minPercent;
             self::compress();
         } else {
+            self::$size = self::$originalSize;
             self::$dimension = getimagesize(self::$originalFile);
             self::getExt();
-            copy(self::$tempDir.DIRECTORY_SEPARATOR.self::$testFile[2].self::$ext, self::$targetFile.self::$ext);
+            copy(self::$originalFile, self::$targetFile.self::$ext);
         }
         if ($tempDirDelete){
             self::delete_files( self::$tempDir );
+            self::$tempDir = '';
         }
     }
 
