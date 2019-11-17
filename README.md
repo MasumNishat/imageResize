@@ -76,7 +76,7 @@ Supported Image Types
 
 - `IMAGETYPE_JPEG`
 - `IMAGETYPE_PNG`
-- `IMAGETYPE_GIF`: not tested
+- `IMAGETYPE_GIF`
 
 
 Quality
