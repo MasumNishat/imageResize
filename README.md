@@ -21,7 +21,7 @@ This package is available through Packagist with the vendor and package identifi
 If using [Composer](https://getcomposer.org/), run following command:
 
 ```command
-composer require "masum-nishat/image-resize-php":"dev-master@dev"
+composer require "masum-nishat/image-resize-php":"^1.1.0"
 ```
 
 > Note: This library uses GD class which do not support resizing animated gif files
