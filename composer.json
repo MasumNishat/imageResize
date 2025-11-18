@@ -1,9 +1,31 @@
 {
   "name": "masum-nishat/image-resize-php",
-  "description": "Resize image to desire file size by only one compression",
-  "type": "package",
+  "description": "Resize images to desired file size with intelligent compression - supports JPEG, PNG, GIF with transparency",
+  "type": "library",
+  "keywords": [
+    "image",
+    "resize",
+    "compression",
+    "thumbnail",
+    "gd",
+    "php",
+    "image-processing",
+    "image-optimization",
+    "png-transparency"
+  ],
   "require": {
-    "php": ">=7.2.0"
+    "php": ">=7.2.0",
+    "ext-gd": "*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^8.5|^9.0",
+    "squizlabs/php_codesniffer": "^3.7",
+    "phpstan/phpstan": "^1.10",
+    "phpstan/phpstan-strict-rules": "^1.5"
+  },
+  "suggest": {
+    "ext-gd": "Required for image manipulation",
+    "ext-fileinfo": "Required for enhanced MIME type detection"
   },
   "license": "Apache-2.0",
   "authors": [
@@ -13,10 +35,36 @@
       "homepage": "https://github.com/MasumNishat/imageResize"
     }
   ],
+  "support": {
+    "issues": "https://github.com/MasumNishat/imageResize/issues",
+    "source": "https://github.com/MasumNishat/imageResize"
+  },
   "minimum-stability": "stable",
+  "prefer-stable": true,
   "autoload": {
     "psr-4": {
       "MasumNishat\\imageResize\\": "classes/"
     }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "MasumNishat\\imageResize\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit",
+    "test-coverage": "phpunit --coverage-html coverage",
+    "phpcs": "phpcs --standard=PSR12 classes/",
+    "phpcs-fix": "phpcbf --standard=PSR12 classes/",
+    "phpstan": "phpstan analyze -l 8 classes/",
+    "check": [
+      "@phpcs",
+      "@phpstan",
+      "@test"
+    ]
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
   }
 }
