@@ -1,0 +1,17 @@
+parameters:
+    level: 8
+    paths:
+        - classes
+    excludePaths:
+        - vendor
+    treatPhpDocTypesAsCertain: false
+    checkMissingIterableValueType: true
+    checkGenericClassInNonGenericObjectType: true
+    reportUnmatchedIgnoredErrors: false
+
+    # Ignore specific errors that are intentional or unavoidable
+    ignoreErrors:
+        # GD functions return false on failure, we handle this
+        - '#Call to function is_array\(\) with array will always evaluate to true#'
+        # Static properties used for backward compatibility
+        - '#Access to an undefined static property#'

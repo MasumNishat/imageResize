@@ -4,6 +4,10 @@ PHP library to resize images to desired file size with intelligent compression.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![PHP Version](https://img.shields.io/badge/PHP-%3E%3D7.2-8892BF.svg)](https://www.php.net/)
+[![CI Status](https://github.com/MasumNishat/imageResize/workflows/CI/badge.svg)](https://github.com/MasumNishat/imageResize/actions)
+[![Codecov](https://codecov.io/gh/MasumNishat/imageResize/branch/main/graph/badge.svg)](https://codecov.io/gh/MasumNishat/imageResize)
+[![Latest Stable Version](https://img.shields.io/packagist/v/masum-nishat/image-resize-php.svg)](https://packagist.org/packages/masum-nishat/image-resize-php)
+[![Total Downloads](https://img.shields.io/packagist/dt/masum-nishat/image-resize-php.svg)](https://packagist.org/packages/masum-nishat/image-resize-php)
 
 ---
 
@@ -318,21 +322,48 @@ imageResize::convert('gallery.jpg', 'gallery-optimized.jpg');
 
 ## Contributing
 
-Contributions are welcome! Please see [CLAUDE.md](CLAUDE.md) for the development roadmap and implementation plan.
+Contributions are welcome! We appreciate your help in making this library better.
+
+### Getting Started
+
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines
+2. Check [CLAUDE.md](CLAUDE.md) for the development roadmap
+3. Review [CHANGELOG.md](CHANGELOG.md) for recent changes
+4. See [tests/README.md](tests/README.md) for testing guide
+
+### Quick Contribution Guide
+
+```bash
+# Fork and clone the repository
+git clone https://github.com/YOUR-USERNAME/imageResize.git
+cd imageResize
+
+# Install dependencies
+composer install
+
+# Generate test fixtures
+php tests/Fixtures/generate_fixtures.php
+
+# Run quality checks
+composer check
+
+# Make your changes and submit a PR
+```
 
 ### Reporting Issues
 
-Please report bugs and security issues through the GitHub issue tracker.
+Please report bugs and security issues through the [GitHub issue tracker](https://github.com/MasumNishat/imageResize/issues).
 
 ---
 
 ## Development Roadmap
 
 See [CLAUDE.md](CLAUDE.md) for the complete development roadmap including:
-- Testing infrastructure
-- Additional features
-- Performance optimizations
-- API enhancements
+- ✅ Phase 1: Critical Fixes & Security (Complete)
+- ✅ Phase 2: Testing Infrastructure (Complete)
+- ✅ Phase 3: Documentation & DevOps (Complete)
+- 🔄 Phase 4: Feature Enhancements (Planned)
+- 🔄 Phase 5: Advanced Features (Planned)
 
 ---
 
