@@ -814,4 +814,1029 @@ class imageResize
         // This is left for future enhancement
         return false;
     }
+
+    /**
+     * Crop an image to exact dimensions
+     *
+     * Crops an image to specified width and height. Supports multiple crop modes:
+     * - Center crop (default): crops from the center of the image
+     * - Position crop: crops from specified x, y coordinates
+     * - Resize and crop: resizes to fill dimensions then crops excess
+     *
+     * @param string $file Path to the source image file
+     * @param string $target Path to the output image file
+     * @param int $width Target width in pixels
+     * @param int $height Target height in pixels
+     * @param int|null $x X-coordinate for crop start (null for center crop)
+     * @param int|null $y Y-coordinate for crop start (null for center crop)
+     * @param bool $resizeToFill Whether to resize image to fill dimensions before cropping
+     * @return bool True on success
+     * @throws InvalidFileException If source file is invalid
+     * @throws InvalidPathException If file paths are invalid
+     * @throws UnsupportedFormatException If image format is not supported
+     * @throws InsufficientPermissionsException If file permissions prevent operation
+     * @throws CompressionFailedException If crop operation fails
+     */
+    public static function crop(
+        string $file,
+        string $target,
+        int $width,
+        int $height,
+        ?int $x = null,
+        ?int $y = null,
+        bool $resizeToFill = false
+    ): bool {
+        // Validate inputs
+        self::validatePath($file, 'source');
+        self::validatePath($target, 'target');
+        self::validateFile($file);
+
+        // Check permissions
+        self::checkPermissions($file, $target);
+
+        // Validate crop dimensions
+        if ($width <= 0 || $height <= 0) {
+            throw new InvalidFileException("Crop dimensions must be positive integers");
+        }
+
+        // Get image info
+        $imageInfo = getimagesize($file);
+        if ($imageInfo === false) {
+            throw new InvalidFileException("File is not a valid image: {$file}");
+        }
+
+        self::validateMimeType($imageInfo['mime']);
+
+        $sourceWidth = $imageInfo[0];
+        $sourceHeight = $imageInfo[1];
+        $mime = $imageInfo['mime'];
+
+        // Determine file extension
+        $ext = self::getExtensionFromMime($mime);
+
+        // Check if target already has extension
+        $targetParts = explode('.', $target);
+        $targetExt = '.' . strtolower(array_pop($targetParts));
+        if ($targetExt === $ext) {
+            $ext = '';
+        }
+
+        // Calculate crop coordinates
+        if ($x === null || $y === null) {
+            // Center crop
+            if ($resizeToFill) {
+                // Calculate aspect ratios
+                $sourceRatio = $sourceWidth / $sourceHeight;
+                $targetRatio = $width / $height;
+
+                if ($sourceRatio > $targetRatio) {
+                    // Source is wider, fit to height
+                    $resizeHeight = $height;
+                    $resizeWidth = (int)($sourceWidth * ($height / $sourceHeight));
+                } else {
+                    // Source is taller, fit to width
+                    $resizeWidth = $width;
+                    $resizeHeight = (int)($sourceHeight * ($width / $sourceWidth));
+                }
+
+                $x = (int)(($resizeWidth - $width) / 2);
+                $y = (int)(($resizeHeight - $height) / 2);
+            } else {
+                $x = (int)(($sourceWidth - $width) / 2);
+                $y = (int)(($sourceHeight - $height) / 2);
+            }
+        }
+
+        // Validate crop coordinates
+        if (!$resizeToFill) {
+            if ($x < 0 || $y < 0 || ($x + $width) > $sourceWidth || ($y + $height) > $sourceHeight) {
+                throw new InvalidFileException(
+                    "Crop dimensions ({$width}x{$height}) at position ({$x},{$y}) exceed image bounds ({$sourceWidth}x{$sourceHeight})"
+                );
+            }
+        }
+
+        // Load source image
+        $sourceImage = self::loadImageResource($file, $mime);
+
+        // Handle resize to fill if requested
+        if ($resizeToFill) {
+            $sourceRatio = $sourceWidth / $sourceHeight;
+            $targetRatio = $width / $height;
+
+            if ($sourceRatio > $targetRatio) {
+                // Source is wider, fit to height
+                $resizeHeight = $height;
+                $resizeWidth = (int)($sourceWidth * ($height / $sourceHeight));
+            } else {
+                // Source is taller, fit to width
+                $resizeWidth = $width;
+                $resizeHeight = (int)($sourceHeight * ($width / $sourceWidth));
+            }
+
+            // Create resized image
+            $resizedImage = imagecreatetruecolor($resizeWidth, $resizeHeight);
+            if ($resizedImage === false) {
+                imagedestroy($sourceImage);
+                throw new CompressionFailedException("Failed to create resized image resource");
+            }
+
+            // Preserve transparency for PNG, GIF, WebP
+            if ($mime === 'image/png' || $mime === 'image/gif' || $mime === 'image/webp') {
+                imagealphablending($resizedImage, false);
+                imagesavealpha($resizedImage, true);
+                $transparent = imagecolorallocatealpha($resizedImage, 0, 0, 0, 127);
+                if ($transparent !== false) {
+                    imagefilledrectangle($resizedImage, 0, 0, $resizeWidth, $resizeHeight, $transparent);
+                }
+            }
+
+            // Resize
+            $success = imagecopyresampled(
+                $resizedImage,
+                $sourceImage,
+                0,
+                0,
+                0,
+                0,
+                $resizeWidth,
+                $resizeHeight,
+                $sourceWidth,
+                $sourceHeight
+            );
+
+            if (!$success) {
+                imagedestroy($sourceImage);
+                imagedestroy($resizedImage);
+                throw new CompressionFailedException("Image resize failed");
+            }
+
+            imagedestroy($sourceImage);
+            $sourceImage = $resizedImage;
+
+            // Recalculate crop position for center crop
+            $x = (int)(($resizeWidth - $width) / 2);
+            $y = (int)(($resizeHeight - $height) / 2);
+        }
+
+        // Create destination image
+        $destImage = imagecreatetruecolor($width, $height);
+        if ($destImage === false) {
+            imagedestroy($sourceImage);
+            throw new CompressionFailedException("Failed to create destination image resource");
+        }
+
+        // Preserve transparency for PNG, GIF, WebP
+        if ($mime === 'image/png' || $mime === 'image/gif' || $mime === 'image/webp') {
+            imagealphablending($destImage, false);
+            imagesavealpha($destImage, true);
+            $transparent = imagecolorallocatealpha($destImage, 0, 0, 0, 127);
+            if ($transparent !== false) {
+                imagefilledrectangle($destImage, 0, 0, $width, $height, $transparent);
+            }
+        }
+
+        // Perform crop
+        $success = imagecopy($destImage, $sourceImage, 0, 0, $x, $y, $width, $height);
+        if (!$success) {
+            imagedestroy($sourceImage);
+            imagedestroy($destImage);
+            throw new CompressionFailedException("Image crop failed");
+        }
+
+        // Save cropped image
+        $outputPath = $target . $ext;
+        $saveSuccess = self::saveImageResource($destImage, $outputPath, $mime);
+
+        // Cleanup
+        imagedestroy($sourceImage);
+        imagedestroy($destImage);
+
+        if (!$saveSuccess) {
+            throw new CompressionFailedException("Failed to save cropped image");
+        }
+
+        return true;
+    }
+
+    /**
+     * Load an image resource from file based on MIME type
+     *
+     * @param string $file Path to image file
+     * @param string $mime MIME type of the image
+     * @return \GdImage|resource Image resource
+     * @throws UnsupportedFormatException If format is not supported
+     * @throws CompressionFailedException If image cannot be loaded
+     */
+    private static function loadImageResource(string $file, string $mime)
+    {
+        switch ($mime) {
+            case 'image/jpeg':
+                $image = imagecreatefromjpeg($file);
+                break;
+            case 'image/png':
+                $image = imagecreatefrompng($file);
+                break;
+            case 'image/gif':
+                $image = imagecreatefromgif($file);
+                break;
+            case 'image/webp':
+                if (!function_exists('imagecreatefromwebp')) {
+                    throw new UnsupportedFormatException("WebP support not available in this PHP installation");
+                }
+                $image = imagecreatefromwebp($file);
+                break;
+            default:
+                throw new UnsupportedFormatException("Unsupported MIME type: {$mime}");
+        }
+
+        if ($image === false) {
+            throw new CompressionFailedException("Failed to load image from file: {$file}");
+        }
+
+        return $image;
+    }
+
+    /**
+     * Save an image resource to file based on MIME type
+     *
+     * @param \GdImage|resource $image Image resource
+     * @param string $file Path to save the image
+     * @param string $mime MIME type of the image
+     * @return bool True on success
+     * @throws UnsupportedFormatException If format is not supported
+     */
+    private static function saveImageResource($image, string $file, string $mime): bool
+    {
+        switch ($mime) {
+            case 'image/jpeg':
+                $quality = (self::$quality !== null) ? (int)self::$quality : self::JPEG_QUALITY;
+                return imagejpeg($image, $file, $quality);
+
+            case 'image/png':
+                $compression = (self::$quality !== null)
+                    ? (int)(9 - (self::$quality / 100 * 9))
+                    : self::PNG_COMPRESSION;
+                return imagepng($image, $file, $compression, PNG_ALL_FILTERS);
+
+            case 'image/gif':
+                return imagegif($image, $file);
+
+            case 'image/webp':
+                if (!function_exists('imagewebp')) {
+                    throw new UnsupportedFormatException("WebP support not available in this PHP installation");
+                }
+                $quality = (self::$quality !== null) ? (int)self::$quality : 90;
+                return imagewebp($image, $file, $quality);
+
+            default:
+                throw new UnsupportedFormatException("Unsupported MIME type: {$mime}");
+        }
+    }
+
+    /**
+     * Get file extension from MIME type
+     *
+     * @param string $mime MIME type
+     * @return string File extension with leading dot
+     * @throws UnsupportedFormatException If MIME type is unknown
+     */
+    private static function getExtensionFromMime(string $mime): string
+    {
+        switch ($mime) {
+            case 'image/jpeg':
+                return '.jpg';
+            case 'image/png':
+                return '.png';
+            case 'image/gif':
+                return '.gif';
+            case 'image/webp':
+                return '.webp';
+            default:
+                throw new UnsupportedFormatException("Unknown MIME type: {$mime}");
+        }
+    }
+
+    /**
+     * Apply filters to an image
+     *
+     * Supports multiple filters:
+     * - grayscale: Convert to grayscale
+     * - blur: Apply Gaussian blur (with optional intensity)
+     * - sharpen: Sharpen the image
+     * - brightness: Adjust brightness (-255 to 255)
+     * - contrast: Adjust contrast (-100 to 100)
+     * - colorize: Tint image with RGB values
+     * - edgedetect: Detect edges
+     * - emboss: Emboss effect
+     * - negate: Invert colors
+     * - pixelate: Pixelate effect (with block size)
+     * - sepia: Sepia tone effect
+     *
+     * @param string $file Path to the source image file
+     * @param string $target Path to the output image file
+     * @param string $filterType Type of filter to apply
+     * @param array<string, mixed> $options Filter-specific options
+     * @return bool True on success
+     * @throws InvalidFileException If source file is invalid
+     * @throws InvalidPathException If file paths are invalid
+     * @throws UnsupportedFormatException If image format is not supported
+     * @throws InsufficientPermissionsException If file permissions prevent operation
+     * @throws CompressionFailedException If filter operation fails
+     */
+    public static function filter(
+        string $file,
+        string $target,
+        string $filterType,
+        array $options = []
+    ): bool {
+        // Validate inputs
+        self::validatePath($file, 'source');
+        self::validatePath($target, 'target');
+        self::validateFile($file);
+
+        // Check permissions
+        self::checkPermissions($file, $target);
+
+        // Get image info
+        $imageInfo = getimagesize($file);
+        if ($imageInfo === false) {
+            throw new InvalidFileException("File is not a valid image: {$file}");
+        }
+
+        self::validateMimeType($imageInfo['mime']);
+
+        $mime = $imageInfo['mime'];
+
+        // Determine file extension
+        $ext = self::getExtensionFromMime($mime);
+
+        // Check if target already has extension
+        $targetParts = explode('.', $target);
+        $targetExt = '.' . strtolower(array_pop($targetParts));
+        if ($targetExt === $ext) {
+            $ext = '';
+        }
+
+        // Load source image
+        $image = self::loadImageResource($file, $mime);
+
+        // Apply filter based on type
+        $filterApplied = false;
+        $filterType = strtolower($filterType);
+
+        switch ($filterType) {
+            case 'grayscale':
+                $filterApplied = imagefilter($image, IMG_FILTER_GRAYSCALE);
+                break;
+
+            case 'blur':
+                $intensity = $options['intensity'] ?? 1;
+                for ($i = 0; $i < $intensity; $i++) {
+                    $filterApplied = imagefilter($image, IMG_FILTER_GAUSSIAN_BLUR);
+                    if (!$filterApplied) {
+                        break;
+                    }
+                }
+                break;
+
+            case 'sharpen':
+                $filterApplied = imagefilter($image, IMG_FILTER_MEAN_REMOVAL);
+                break;
+
+            case 'brightness':
+                $level = $options['level'] ?? 0;
+                if ($level < -255 || $level > 255) {
+                    imagedestroy($image);
+                    throw new InvalidFileException("Brightness level must be between -255 and 255");
+                }
+                $filterApplied = imagefilter($image, IMG_FILTER_BRIGHTNESS, (int)$level);
+                break;
+
+            case 'contrast':
+                $level = $options['level'] ?? 0;
+                if ($level < -100 || $level > 100) {
+                    imagedestroy($image);
+                    throw new InvalidFileException("Contrast level must be between -100 and 100");
+                }
+                $filterApplied = imagefilter($image, IMG_FILTER_CONTRAST, (int)$level);
+                break;
+
+            case 'colorize':
+                $red = $options['red'] ?? 0;
+                $green = $options['green'] ?? 0;
+                $blue = $options['blue'] ?? 0;
+                $alpha = $options['alpha'] ?? 0;
+                $filterApplied = imagefilter($image, IMG_FILTER_COLORIZE, (int)$red, (int)$green, (int)$blue, (int)$alpha);
+                break;
+
+            case 'edgedetect':
+                $filterApplied = imagefilter($image, IMG_FILTER_EDGEDETECT);
+                break;
+
+            case 'emboss':
+                $filterApplied = imagefilter($image, IMG_FILTER_EMBOSS);
+                break;
+
+            case 'negate':
+                $filterApplied = imagefilter($image, IMG_FILTER_NEGATE);
+                break;
+
+            case 'pixelate':
+                $blockSize = $options['block_size'] ?? 5;
+                $advanced = $options['advanced'] ?? true;
+                $filterApplied = imagefilter($image, IMG_FILTER_PIXELATE, (int)$blockSize, $advanced);
+                break;
+
+            case 'sepia':
+                // Sepia is achieved through grayscale + colorize
+                $filterApplied = imagefilter($image, IMG_FILTER_GRAYSCALE);
+                if ($filterApplied) {
+                    $filterApplied = imagefilter($image, IMG_FILTER_COLORIZE, 90, 60, 40);
+                }
+                break;
+
+            case 'smooth':
+                $level = $options['level'] ?? 5;
+                $filterApplied = imagefilter($image, IMG_FILTER_SMOOTH, (int)$level);
+                break;
+
+            default:
+                imagedestroy($image);
+                throw new InvalidFileException(
+                    "Unknown filter type: {$filterType}. " .
+                    "Supported filters: grayscale, blur, sharpen, brightness, contrast, colorize, " .
+                    "edgedetect, emboss, negate, pixelate, sepia, smooth"
+                );
+        }
+
+        if (!$filterApplied) {
+            imagedestroy($image);
+            throw new CompressionFailedException("Failed to apply {$filterType} filter");
+        }
+
+        // Save filtered image
+        $outputPath = $target . $ext;
+        $saveSuccess = self::saveImageResource($image, $outputPath, $mime);
+
+        // Cleanup
+        imagedestroy($image);
+
+        if (!$saveSuccess) {
+            throw new CompressionFailedException("Failed to save filtered image");
+        }
+
+        return true;
+    }
+
+    /**
+     * Apply multiple filters in sequence
+     *
+     * @param string $file Path to the source image file
+     * @param string $target Path to the output image file
+     * @param array<array{type: string, options?: array<string, mixed>}> $filters Array of filters to apply
+     * @return bool True on success
+     * @throws ImageResizeException On any error
+     */
+    public static function filterChain(
+        string $file,
+        string $target,
+        array $filters
+    ): bool {
+        // Validate inputs
+        self::validatePath($file, 'source');
+        self::validatePath($target, 'target');
+        self::validateFile($file);
+
+        // Check permissions
+        self::checkPermissions($file, $target);
+
+        // Get image info
+        $imageInfo = getimagesize($file);
+        if ($imageInfo === false) {
+            throw new InvalidFileException("File is not a valid image: {$file}");
+        }
+
+        self::validateMimeType($imageInfo['mime']);
+
+        $mime = $imageInfo['mime'];
+
+        // Determine file extension
+        $ext = self::getExtensionFromMime($mime);
+
+        // Check if target already has extension
+        $targetParts = explode('.', $target);
+        $targetExt = '.' . strtolower(array_pop($targetParts));
+        if ($targetExt === $ext) {
+            $ext = '';
+        }
+
+        // Load source image
+        $image = self::loadImageResource($file, $mime);
+
+        // Apply filters in sequence
+        foreach ($filters as $filterConfig) {
+            $filterType = $filterConfig['type'] ?? '';
+            $options = $filterConfig['options'] ?? [];
+
+            if (empty($filterType)) {
+                imagedestroy($image);
+                throw new InvalidFileException("Filter type cannot be empty");
+            }
+
+            $filterType = strtolower($filterType);
+            $filterApplied = false;
+
+            switch ($filterType) {
+                case 'grayscale':
+                    $filterApplied = imagefilter($image, IMG_FILTER_GRAYSCALE);
+                    break;
+
+                case 'blur':
+                    $intensity = $options['intensity'] ?? 1;
+                    for ($i = 0; $i < $intensity; $i++) {
+                        $filterApplied = imagefilter($image, IMG_FILTER_GAUSSIAN_BLUR);
+                        if (!$filterApplied) {
+                            break;
+                        }
+                    }
+                    break;
+
+                case 'sharpen':
+                    $filterApplied = imagefilter($image, IMG_FILTER_MEAN_REMOVAL);
+                    break;
+
+                case 'brightness':
+                    $level = $options['level'] ?? 0;
+                    if ($level < -255 || $level > 255) {
+                        imagedestroy($image);
+                        throw new InvalidFileException("Brightness level must be between -255 and 255");
+                    }
+                    $filterApplied = imagefilter($image, IMG_FILTER_BRIGHTNESS, (int)$level);
+                    break;
+
+                case 'contrast':
+                    $level = $options['level'] ?? 0;
+                    if ($level < -100 || $level > 100) {
+                        imagedestroy($image);
+                        throw new InvalidFileException("Contrast level must be between -100 and 100");
+                    }
+                    $filterApplied = imagefilter($image, IMG_FILTER_CONTRAST, (int)$level);
+                    break;
+
+                case 'colorize':
+                    $red = $options['red'] ?? 0;
+                    $green = $options['green'] ?? 0;
+                    $blue = $options['blue'] ?? 0;
+                    $alpha = $options['alpha'] ?? 0;
+                    $filterApplied = imagefilter($image, IMG_FILTER_COLORIZE, (int)$red, (int)$green, (int)$blue, (int)$alpha);
+                    break;
+
+                case 'edgedetect':
+                    $filterApplied = imagefilter($image, IMG_FILTER_EDGEDETECT);
+                    break;
+
+                case 'emboss':
+                    $filterApplied = imagefilter($image, IMG_FILTER_EMBOSS);
+                    break;
+
+                case 'negate':
+                    $filterApplied = imagefilter($image, IMG_FILTER_NEGATE);
+                    break;
+
+                case 'pixelate':
+                    $blockSize = $options['block_size'] ?? 5;
+                    $advanced = $options['advanced'] ?? true;
+                    $filterApplied = imagefilter($image, IMG_FILTER_PIXELATE, (int)$blockSize, $advanced);
+                    break;
+
+                case 'sepia':
+                    $filterApplied = imagefilter($image, IMG_FILTER_GRAYSCALE);
+                    if ($filterApplied) {
+                        $filterApplied = imagefilter($image, IMG_FILTER_COLORIZE, 90, 60, 40);
+                    }
+                    break;
+
+                case 'smooth':
+                    $level = $options['level'] ?? 5;
+                    $filterApplied = imagefilter($image, IMG_FILTER_SMOOTH, (int)$level);
+                    break;
+
+                default:
+                    imagedestroy($image);
+                    throw new InvalidFileException("Unknown filter type: {$filterType}");
+            }
+
+            if (!$filterApplied) {
+                imagedestroy($image);
+                throw new CompressionFailedException("Failed to apply {$filterType} filter");
+            }
+        }
+
+        // Save filtered image
+        $outputPath = $target . $ext;
+        $saveSuccess = self::saveImageResource($image, $outputPath, $mime);
+
+        // Cleanup
+        imagedestroy($image);
+
+        if (!$saveSuccess) {
+            throw new CompressionFailedException("Failed to save filtered image");
+        }
+
+        return true;
+    }
+
+    /**
+     * Add text watermark to an image
+     *
+     * @param string $file Path to the source image file
+     * @param string $target Path to the output image file
+     * @param string $text Text to use as watermark
+     * @param array<string, mixed> $options Watermark options:
+     *   - position: 'center'|'top-left'|'top-right'|'bottom-left'|'bottom-right' (default: 'bottom-right')
+     *   - x: Custom X coordinate (overrides position)
+     *   - y: Custom Y coordinate (overrides position)
+     *   - font_size: Font size in points (default: 12)
+     *   - font_file: Path to TTF font file (required for imagettftext)
+     *   - color: RGB color as array [r, g, b] (default: [255, 255, 255])
+     *   - opacity: Opacity 0-127, where 0 is opaque and 127 is transparent (default: 0)
+     *   - angle: Text rotation angle in degrees (default: 0)
+     *   - padding: Padding from edges in pixels (default: 10)
+     * @return bool True on success
+     * @throws InvalidFileException If source file is invalid
+     * @throws InvalidPathException If file paths are invalid
+     * @throws UnsupportedFormatException If image format is not supported
+     * @throws InsufficientPermissionsException If file permissions prevent operation
+     * @throws CompressionFailedException If watermark operation fails
+     */
+    public static function watermarkText(
+        string $file,
+        string $target,
+        string $text,
+        array $options = []
+    ): bool {
+        // Validate inputs
+        self::validatePath($file, 'source');
+        self::validatePath($target, 'target');
+        self::validateFile($file);
+
+        // Check permissions
+        self::checkPermissions($file, $target);
+
+        if (empty($text)) {
+            throw new InvalidFileException("Watermark text cannot be empty");
+        }
+
+        // Get image info
+        $imageInfo = getimagesize($file);
+        if ($imageInfo === false) {
+            throw new InvalidFileException("File is not a valid image: {$file}");
+        }
+
+        self::validateMimeType($imageInfo['mime']);
+
+        $mime = $imageInfo['mime'];
+        $imageWidth = $imageInfo[0];
+        $imageHeight = $imageInfo[1];
+
+        // Determine file extension
+        $ext = self::getExtensionFromMime($mime);
+
+        // Check if target already has extension
+        $targetParts = explode('.', $target);
+        $targetExt = '.' . strtolower(array_pop($targetParts));
+        if ($targetExt === $ext) {
+            $ext = '';
+        }
+
+        // Load source image
+        $image = self::loadImageResource($file, $mime);
+
+        // Parse options
+        $position = $options['position'] ?? 'bottom-right';
+        $fontSize = $options['font_size'] ?? 12;
+        $fontFile = $options['font_file'] ?? null;
+        $color = $options['color'] ?? [255, 255, 255];
+        $opacity = isset($options['opacity']) ? (int)$options['opacity'] : 0;
+        $angle = $options['angle'] ?? 0;
+        $padding = $options['padding'] ?? 10;
+
+        // Validate opacity
+        if ($opacity < 0 || $opacity > 127) {
+            imagedestroy($image);
+            throw new InvalidFileException("Opacity must be between 0 (opaque) and 127 (transparent)");
+        }
+
+        // Allocate color with alpha
+        $textColor = imagecolorallocatealpha(
+            $image,
+            (int)$color[0],
+            (int)$color[1],
+            (int)$color[2],
+            $opacity
+        );
+
+        if ($textColor === false) {
+            imagedestroy($image);
+            throw new CompressionFailedException("Failed to allocate watermark color");
+        }
+
+        // Calculate text dimensions and position
+        if ($fontFile !== null && file_exists($fontFile)) {
+            // Use TrueType font
+            $bbox = imagettfbbox($fontSize, $angle, $fontFile, $text);
+            if ($bbox === false) {
+                imagedestroy($image);
+                throw new CompressionFailedException("Failed to calculate text bounding box");
+            }
+
+            $textWidth = abs($bbox[4] - $bbox[0]);
+            $textHeight = abs($bbox[5] - $bbox[1]);
+
+            // Calculate position
+            list($x, $y) = self::calculateWatermarkPosition(
+                $imageWidth,
+                $imageHeight,
+                $textWidth,
+                $textHeight,
+                $position,
+                $padding,
+                $options['x'] ?? null,
+                $options['y'] ?? null
+            );
+
+            // Adjust for baseline
+            $y += $textHeight;
+
+            // Draw text
+            $success = imagettftext($image, $fontSize, $angle, $x, $y, $textColor, $fontFile, $text);
+            if ($success === false) {
+                imagedestroy($image);
+                throw new CompressionFailedException("Failed to draw watermark text");
+            }
+        } else {
+            // Use built-in font (font 1-5)
+            $font = min(5, max(1, (int)($fontSize / 3))); // Approximate font size
+            $textWidth = imagefontwidth($font) * strlen($text);
+            $textHeight = imagefontheight($font);
+
+            // Calculate position
+            list($x, $y) = self::calculateWatermarkPosition(
+                $imageWidth,
+                $imageHeight,
+                $textWidth,
+                $textHeight,
+                $position,
+                $padding,
+                $options['x'] ?? null,
+                $options['y'] ?? null
+            );
+
+            // Draw text with built-in font
+            imagestring($image, $font, $x, $y, $text, $textColor);
+        }
+
+        // Save watermarked image
+        $outputPath = $target . $ext;
+        $saveSuccess = self::saveImageResource($image, $outputPath, $mime);
+
+        // Cleanup
+        imagedestroy($image);
+
+        if (!$saveSuccess) {
+            throw new CompressionFailedException("Failed to save watermarked image");
+        }
+
+        return true;
+    }
+
+    /**
+     * Add image watermark to an image
+     *
+     * @param string $file Path to the source image file
+     * @param string $target Path to the output image file
+     * @param string $watermarkFile Path to the watermark image file
+     * @param array<string, mixed> $options Watermark options:
+     *   - position: 'center'|'top-left'|'top-right'|'bottom-left'|'bottom-right' (default: 'bottom-right')
+     *   - x: Custom X coordinate (overrides position)
+     *   - y: Custom Y coordinate (overrides position)
+     *   - opacity: Opacity 0-100 (default: 100 for opaque)
+     *   - scale: Scale watermark by percentage (default: 100)
+     *   - padding: Padding from edges in pixels (default: 10)
+     * @return bool True on success
+     * @throws InvalidFileException If source file is invalid
+     * @throws InvalidPathException If file paths are invalid
+     * @throws UnsupportedFormatException If image format is not supported
+     * @throws InsufficientPermissionsException If file permissions prevent operation
+     * @throws CompressionFailedException If watermark operation fails
+     */
+    public static function watermarkImage(
+        string $file,
+        string $target,
+        string $watermarkFile,
+        array $options = []
+    ): bool {
+        // Validate inputs
+        self::validatePath($file, 'source');
+        self::validatePath($target, 'target');
+        self::validateFile($file);
+
+        if (!file_exists($watermarkFile)) {
+            throw new InvalidFileException("Watermark file does not exist: {$watermarkFile}");
+        }
+
+        // Check permissions
+        self::checkPermissions($file, $target);
+
+        // Get source image info
+        $imageInfo = getimagesize($file);
+        if ($imageInfo === false) {
+            throw new InvalidFileException("File is not a valid image: {$file}");
+        }
+
+        self::validateMimeType($imageInfo['mime']);
+
+        $mime = $imageInfo['mime'];
+        $imageWidth = $imageInfo[0];
+        $imageHeight = $imageInfo[1];
+
+        // Get watermark image info
+        $watermarkInfo = getimagesize($watermarkFile);
+        if ($watermarkInfo === false) {
+            throw new InvalidFileException("Watermark file is not a valid image: {$watermarkFile}");
+        }
+
+        self::validateMimeType($watermarkInfo['mime']);
+
+        $watermarkWidth = $watermarkInfo[0];
+        $watermarkHeight = $watermarkInfo[1];
+        $watermarkMime = $watermarkInfo['mime'];
+
+        // Determine file extension
+        $ext = self::getExtensionFromMime($mime);
+
+        // Check if target already has extension
+        $targetParts = explode('.', $target);
+        $targetExt = '.' . strtolower(array_pop($targetParts));
+        if ($targetExt === $ext) {
+            $ext = '';
+        }
+
+        // Load source image
+        $image = self::loadImageResource($file, $mime);
+
+        // Load watermark image
+        $watermark = self::loadImageResource($watermarkFile, $watermarkMime);
+
+        // Parse options
+        $position = $options['position'] ?? 'bottom-right';
+        $opacity = isset($options['opacity']) ? (int)$options['opacity'] : 100;
+        $scale = isset($options['scale']) ? (int)$options['scale'] : 100;
+        $padding = $options['padding'] ?? 10;
+
+        // Validate opacity
+        if ($opacity < 0 || $opacity > 100) {
+            imagedestroy($image);
+            imagedestroy($watermark);
+            throw new InvalidFileException("Opacity must be between 0 and 100");
+        }
+
+        // Scale watermark if needed
+        if ($scale !== 100) {
+            $newWidth = (int)(($watermarkWidth * $scale) / 100);
+            $newHeight = (int)(($watermarkHeight * $scale) / 100);
+
+            $scaledWatermark = imagecreatetruecolor($newWidth, $newHeight);
+            if ($scaledWatermark === false) {
+                imagedestroy($image);
+                imagedestroy($watermark);
+                throw new CompressionFailedException("Failed to create scaled watermark");
+            }
+
+            // Preserve transparency
+            imagealphablending($scaledWatermark, false);
+            imagesavealpha($scaledWatermark, true);
+            $transparent = imagecolorallocatealpha($scaledWatermark, 0, 0, 0, 127);
+            if ($transparent !== false) {
+                imagefilledrectangle($scaledWatermark, 0, 0, $newWidth, $newHeight, $transparent);
+            }
+
+            imagecopyresampled(
+                $scaledWatermark,
+                $watermark,
+                0,
+                0,
+                0,
+                0,
+                $newWidth,
+                $newHeight,
+                $watermarkWidth,
+                $watermarkHeight
+            );
+
+            imagedestroy($watermark);
+            $watermark = $scaledWatermark;
+            $watermarkWidth = $newWidth;
+            $watermarkHeight = $newHeight;
+        }
+
+        // Calculate position
+        list($x, $y) = self::calculateWatermarkPosition(
+            $imageWidth,
+            $imageHeight,
+            $watermarkWidth,
+            $watermarkHeight,
+            $position,
+            $padding,
+            $options['x'] ?? null,
+            $options['y'] ?? null
+        );
+
+        // Apply watermark with opacity
+        imagealphablending($image, true);
+        imagesavealpha($image, true);
+
+        if ($opacity === 100) {
+            // Full opacity - simple copy
+            imagecopy($image, $watermark, $x, $y, 0, 0, $watermarkWidth, $watermarkHeight);
+        } else {
+            // Partial opacity - use imagecopymerge
+            imagecopymerge($image, $watermark, $x, $y, 0, 0, $watermarkWidth, $watermarkHeight, $opacity);
+        }
+
+        // Save watermarked image
+        $outputPath = $target . $ext;
+        $saveSuccess = self::saveImageResource($image, $outputPath, $mime);
+
+        // Cleanup
+        imagedestroy($image);
+        imagedestroy($watermark);
+
+        if (!$saveSuccess) {
+            throw new CompressionFailedException("Failed to save watermarked image");
+        }
+
+        return true;
+    }
+
+    /**
+     * Calculate watermark position based on position string or custom coordinates
+     *
+     * @param int $imageWidth Image width
+     * @param int $imageHeight Image height
+     * @param int $watermarkWidth Watermark width
+     * @param int $watermarkHeight Watermark height
+     * @param string $position Position string
+     * @param int $padding Padding from edges
+     * @param int|null $customX Custom X coordinate
+     * @param int|null $customY Custom Y coordinate
+     * @return array{0: int, 1: int} [x, y] coordinates
+     */
+    private static function calculateWatermarkPosition(
+        int $imageWidth,
+        int $imageHeight,
+        int $watermarkWidth,
+        int $watermarkHeight,
+        string $position,
+        int $padding,
+        ?int $customX,
+        ?int $customY
+    ): array {
+        // Use custom coordinates if provided
+        if ($customX !== null && $customY !== null) {
+            return [(int)$customX, (int)$customY];
+        }
+
+        // Calculate position based on string
+        switch ($position) {
+            case 'center':
+                $x = (int)(($imageWidth - $watermarkWidth) / 2);
+                $y = (int)(($imageHeight - $watermarkHeight) / 2);
+                break;
+
+            case 'top-left':
+                $x = $padding;
+                $y = $padding;
+                break;
+
+            case 'top-right':
+                $x = $imageWidth - $watermarkWidth - $padding;
+                $y = $padding;
+                break;
+
+            case 'bottom-left':
+                $x = $padding;
+                $y = $imageHeight - $watermarkHeight - $padding;
+                break;
+
+            case 'bottom-right':
+            default:
+                $x = $imageWidth - $watermarkWidth - $padding;
+                $y = $imageHeight - $watermarkHeight - $padding;
+                break;
+        }
+
+        return [$x, $y];
+    }
 }

@@ -13,7 +13,7 @@ PHP library to resize images to desired file size with intelligent compression.
 
 ## Features
 
-✨ **Version 2.1** - Feature Enhanced
+✨ **Version 2.2** - Advanced Image Processing
 
 - **Intelligent Compression**: Automatically resize images to meet target file size
 - **Security Hardened**: Input validation, path security, MIME type verification
@@ -21,11 +21,14 @@ PHP library to resize images to desired file size with intelligent compression.
 - **PNG Transparency**: Full support for transparent PNG and WebP images
 - **Type Safe**: Strict type declarations for PHP 7.2+
 - **Well Documented**: Complete PHPDoc comments for all methods
-- **Multiple Formats**: Support for JPEG, PNG, GIF, and **WebP** 🆕
-- **Quality Control**: Adjustable image quality (0-100) 🆕
-- **Batch Processing**: Process multiple images efficiently 🆕
-- **Progress Callbacks**: Track resize operations in real-time 🆕
-- **Detailed Results**: Get comprehensive resize statistics 🆕
+- **Multiple Formats**: Support for JPEG, PNG, GIF, and WebP
+- **Quality Control**: Adjustable image quality (0-100)
+- **Batch Processing**: Process multiple images efficiently
+- **Progress Callbacks**: Track resize operations in real-time
+- **Detailed Results**: Get comprehensive resize statistics
+- **Image Cropping**: Center, position, and resize-to-fill cropping 🆕
+- **Image Filters**: 12+ filters including grayscale, blur, sharpen, artistic effects 🆕
+- **Watermarking**: Text and image watermarks with opacity control 🆕
 
 ---
 
@@ -159,6 +162,125 @@ $result = imageResize::convertWithResult(
     function($progress, $message) {
         echo "[{$progress}%] {$message}\n";
     }
+);
+```
+
+### Image Cropping (v2.2+)
+
+Crop images to exact dimensions with multiple modes:
+
+```php
+use MasumNishat\imageResize\imageResize;
+
+// Center crop to square (perfect for thumbnails)
+imageResize::crop(
+    'photo.jpg',
+    'thumbnail.jpg',
+    500,  // width
+    500   // height
+);
+
+// Custom position crop
+imageResize::crop(
+    'photo.jpg',
+    'cropped.jpg',
+    300,  // width
+    200,  // height
+    100,  // x position
+    50    // y position
+);
+
+// Resize to fill and crop (best for consistent thumbnails)
+imageResize::crop(
+    'large-photo.jpg',
+    'thumb.jpg',
+    400,
+    400,
+    null,  // auto-center x
+    null,  // auto-center y
+    true   // resize to fill before cropping
+);
+```
+
+### Image Filters (v2.2+)
+
+Apply professional image filters:
+
+```php
+use MasumNishat\imageResize\imageResize;
+
+// Single filter
+imageResize::filter('photo.jpg', 'grayscale.jpg', 'grayscale');
+
+// Filter with options
+imageResize::filter(
+    'photo.jpg',
+    'bright.jpg',
+    'brightness',
+    ['level' => 50]  // -255 to 255
+);
+
+// Multiple filters in sequence
+imageResize::filterChain(
+    'photo.jpg',
+    'artistic.jpg',
+    [
+        ['type' => 'grayscale'],
+        ['type' => 'brightness', 'options' => ['level' => 30]],
+        ['type' => 'contrast', 'options' => ['level' => -20]],
+        ['type' => 'sharpen']
+    ]
+);
+```
+
+**Available filters**: grayscale, sepia, blur, sharpen, brightness, contrast, colorize, edgedetect, emboss, negate, pixelate, smooth
+
+### Watermarking (v2.2+)
+
+Add text or image watermarks with full control:
+
+```php
+use MasumNishat\imageResize\imageResize;
+
+// Text watermark
+imageResize::watermarkText(
+    'photo.jpg',
+    'watermarked.jpg',
+    '© 2025 My Brand',
+    [
+        'position' => 'bottom-right',  // or 'center', 'top-left', etc.
+        'font_size' => 12,
+        'color' => [255, 255, 255],    // RGB white
+        'opacity' => 50,               // 0=opaque, 127=transparent
+        'padding' => 10
+    ]
+);
+
+// Image watermark (logo)
+imageResize::watermarkImage(
+    'photo.jpg',
+    'branded.jpg',
+    'logo.png',
+    [
+        'position' => 'bottom-right',
+        'opacity' => 70,   // 0-100
+        'scale' => 50,     // 50% of original size
+        'padding' => 20
+    ]
+);
+
+// Custom position watermark
+imageResize::watermarkText(
+    'photo.jpg',
+    'custom.jpg',
+    'SAMPLE',
+    [
+        'x' => 100,
+        'y' => 50,
+        'font_size' => 20,
+        'color' => [255, 0, 0],
+        'opacity' => 80
+    ]
 );
 ```
 
@@ -406,6 +528,27 @@ imageResize::convert('gallery.jpg', 'gallery-optimized.jpg');
 
 ---
 
+## Complete Examples
+
+The `examples/` directory contains comprehensive working examples:
+
+- **01_crop_example.php**: Cropping techniques and modes
+- **02_filter_example.php**: All 12 filters with options
+- **03_watermark_example.php**: Text and image watermarks
+- **04_combined_example.php**: Complete workflows combining features
+
+Run examples:
+```bash
+php examples/01_crop_example.php
+php examples/02_filter_example.php
+php examples/03_watermark_example.php
+php examples/04_combined_example.php
+```
+
+See [examples/README.md](examples/README.md) for detailed documentation.
+
+---
+
 ## Contributing
 
 Contributions are welcome! We appreciate your help in making this library better.
@@ -448,8 +591,8 @@ See [CLAUDE.md](CLAUDE.md) for the complete development roadmap including:
 - ✅ Phase 1: Critical Fixes & Security (Complete)
 - ✅ Phase 2: Testing Infrastructure (Complete)
 - ✅ Phase 3: Documentation & DevOps (Complete)
-- 🔄 Phase 4: Feature Enhancements (Planned)
-- 🔄 Phase 5: Advanced Features (Planned)
+- ✅ Phase 4: Feature Enhancements (Complete) - v2.1.0
+- ✅ Phase 5: Advanced Features (Complete) - v2.2.0
 
 ---
 
@@ -469,7 +612,35 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 
 ## Changelog
 
-### [2.0.0] - 2025-11-18
+### [2.2.0] - 2025-11-18 (Phase 5)
+
+#### Added - Advanced Image Processing
+- **Image Cropping**: `crop()` method with center, position, and resize-to-fill modes
+- **Image Filters**: `filter()` and `filterChain()` methods with 12+ filters
+  - Basic: grayscale, sepia, negate
+  - Enhancement: blur, sharpen, brightness, contrast
+  - Artistic: emboss, edgedetect, pixelate, smooth
+  - Color: colorize with RGB control
+- **Watermarking**: `watermarkText()` and `watermarkImage()` methods
+  - Text watermarks with font support, color, opacity
+  - Image watermarks with scaling, opacity, positioning
+  - 5 preset positions + custom coordinates
+- **Helper Methods**: `loadImageResource()`, `saveImageResource()`, `getExtensionFromMime()`
+- **Examples Directory**: 4 comprehensive example files with README
+- Transparency preservation across all new features
+
+### [2.1.0] - 2025-11-18 (Phase 4)
+
+#### Added - Feature Enhancements
+- **WebP Support**: Full support for WebP format with transparency
+- **Quality Control**: `$quality` property for adjustable compression (0-100)
+- **Batch Processing**: `convertBatch()` for processing multiple images
+- **Progress Callbacks**: Real-time progress tracking in `convertWithResult()`
+- **ResizeResult Class**: Detailed metadata about resize operations
+- **EXIF Stubs**: `readExif()` and `writeExif()` for future enhancement
+- Enhanced `resize()` method with format-specific quality settings
+
+### [2.0.0] - 2025-11-18 (Phases 1-3)
 
 #### Added
 - Comprehensive exception handling system
@@ -483,6 +654,9 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 - Type hints and strict types
 - Constants for configuration values
 - Extensive PHPDoc documentation
+- PHPUnit test suite (70+ tests)
+- GitHub Actions CI/CD
+- PHPCS, PHPStan integration
 
 #### Fixed
 - PNG transparency loss during resize

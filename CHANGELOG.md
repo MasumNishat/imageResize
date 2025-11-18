@@ -8,15 +8,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- Quality parameter control for user-adjustable compression
-- WebP format support
 - AVIF format support
-- EXIF metadata preservation
-- Batch processing method
-- Progress callback support
-- Image cropping functionality
-- Image filters (grayscale, blur, sharpen)
-- Watermarking support
+- Advanced EXIF metadata preservation and writing
+
+## [2.2.0] - 2025-11-18
+
+### Added
+
+#### Image Cropping (Phase 5)
+- `crop()` method for precise image cropping to exact dimensions
+- **Center crop mode**: Automatically crop from image center
+- **Position crop mode**: Crop from specific x, y coordinates
+- **Resize-to-fill mode**: Resize image to cover dimensions then crop excess
+- Transparency preservation for PNG, GIF, and WebP during cropping
+- Comprehensive validation and error handling for crop operations
+
+#### Image Filters (Phase 5)
+- `filter()` method for applying individual image filters
+- `filterChain()` method for applying multiple filters in sequence
+- **12 built-in filters**:
+  - Basic filters: grayscale, sepia, negate
+  - Enhancement filters: blur (with intensity), sharpen, smooth
+  - Adjustment filters: brightness (-255 to 255), contrast (-100 to 100)
+  - Artistic filters: emboss, edgedetect, pixelate
+  - Color filter: colorize (with RGB and alpha control)
+- Filter-specific options for customization
+- Batch filter processing with filter chains
+
+#### Watermarking (Phase 5)
+- `watermarkText()` method for text-based watermarks
+  - Support for both built-in fonts and TrueType fonts (.ttf)
+  - Configurable font size, color (RGB), and opacity (0-127)
+  - Rotation support for angled text
+  - 5 preset positions: center, top-left, top-right, bottom-left, bottom-right
+  - Custom position support with x, y coordinates
+  - Padding control for position-based placement
+- `watermarkImage()` method for image/logo watermarks
+  - Opacity control (0-100)
+  - Scaling support (resize watermark proportionally)
+  - Position presets and custom coordinates
+  - Transparency preservation for PNG/WebP logo overlays
+- `calculateWatermarkPosition()` helper for consistent positioning
+
+#### Helper Methods (Phase 5)
+- `loadImageResource()` - Load image resources by MIME type
+- `saveImageResource()` - Save image resources with quality control
+- `getExtensionFromMime()` - Convert MIME types to file extensions
+- All helpers support JPEG, PNG, GIF, and WebP formats
+
+#### Examples and Documentation (Phase 5)
+- Created `examples/` directory with 4 comprehensive example files:
+  - `01_crop_example.php` - 4 cropping examples with different modes
+  - `02_filter_example.php` - 11 filter examples including chains
+  - `03_watermark_example.php` - 8 watermarking examples (text and image)
+  - `04_combined_example.php` - 4 complete workflows combining features
+- `examples/README.md` - Comprehensive guide for all examples
+- `examples/output/` - Directory for example outputs
+- Updated main README.md with Phase 5 features and usage examples
+
+### Changed
+- Enhanced `resize()` method now uses helper methods for better code reusability
+- Improved code organization with extracted helper methods
+- Better separation of concerns in image processing operations
+
+---
+
+## [2.1.0] - 2025-11-18
+
+### Added
+
+#### WebP Support (Phase 4)
+- Full WebP format support with transparency preservation
+- WebP added to `ALLOWED_MIME_TYPES` constant
+- WebP creation and reading with `imagewebp()` and `imagecreatefromwebp()`
+- Quality control for WebP (0-100, default: 90)
+- Transparency preservation during WebP processing
+
+#### Quality Control (Phase 4)
+- `imageResize::$quality` property for user-adjustable compression
+- JPEG quality support (0-100, default: 100)
+- PNG quality support (0-100, auto-converted to 0-9 compression level)
+- WebP quality support (0-100, default: 90)
+- GIF maintains lossless compression (no quality parameter)
+- Updated `resize()` method to honor quality settings
+
+#### Batch Processing (Phase 4)
+- `convertBatch()` method for processing multiple images efficiently
+- Progress callback support for batch operations
+- Error resilience - continues processing on individual failures
+- Returns array of `ResizeResult` objects or error arrays
+- Real-time progress tracking with filename reporting
+
+#### Enhanced Results (Phase 4)
+- `ResizeResult` class for detailed operation metadata
+- Comprehensive statistics: dimensions, file sizes, compression ratios
+- `convertWithResult()` method returns `ResizeResult` instead of boolean
+- Progress callback support during conversion
+- Processing time tracking
+- Helper methods: `getSummary()`, `toArray()`, formatting utilities
+
+#### Metadata Stubs (Phase 4)
+- `readExif()` method for reading EXIF data from JPEG/TIFF
+- `writeExif()` stub documented for future enhancement
+- Note: GD limitation documented - writing requires external tools
+
+#### Test Infrastructure (Phase 4)
+- Added WebP fixture to test image generation
+- Updated `generate_fixtures.php` to create test.webp
+- WebP transparency gradient test image (400x400)
+
+---
 
 ## [2.0.0] - 2025-11-18
 

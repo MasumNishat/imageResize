@@ -1,6 +1,6 @@
 {
   "name": "masum-nishat/image-resize-php",
-  "description": "Resize images to desired file size with intelligent compression - supports JPEG, PNG, GIF with transparency",
+  "description": "Advanced image processing library with intelligent compression, cropping, filters, and watermarking - supports JPEG, PNG, GIF, WebP with transparency",
   "type": "library",
   "keywords": [
     "image",
@@ -11,7 +11,12 @@
     "php",
     "image-processing",
     "image-optimization",
-    "png-transparency"
+    "png-transparency",
+    "crop",
+    "filter",
+    "watermark",
+    "webp",
+    "image-manipulation"
   ],
   "require": {
     "php": ">=7.2.0",
