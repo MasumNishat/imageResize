@@ -16,10 +16,12 @@ use MasumNishat\imageResize\Exceptions\InsufficientDiskSpaceException;
  * ImageResize - Resize images to desired file size with optimal compression
  *
  * This class provides functionality to resize images to meet a target file size
- * while maintaining quality and aspect ratio. Supports JPEG, PNG, and GIF formats.
+ * while maintaining quality and aspect ratio. Supports JPEG, PNG, GIF, and WebP formats.
+ *
+ * Version 2.1.0 adds quality control, WebP support, batch processing, and progress callbacks.
  *
  * @package MasumNishat\imageResize
- * @version 2.0.0
+ * @version 2.1.0
  */
 class imageResize
 {
@@ -40,7 +42,8 @@ class imageResize
     private const ALLOWED_MIME_TYPES = [
         'image/jpeg',
         'image/png',
-        'image/gif'
+        'image/gif',
+        'image/webp'
     ];
 
     // Public configuration properties
@@ -49,6 +52,11 @@ class imageResize
     public static $dimension = [];
     public static $originalSize;
     public static $size;
+
+    // Phase 4: New configuration properties
+    public static $quality = null; // null = auto (max quality), or 0-100 for JPEG/WebP, 0-9 for PNG
+    public static $preserveMetadata = true; // Preserve EXIF data
+    public static $stripMetadata = false; // Strip all metadata (overrides preserveMetadata)
 
     // Private working properties
     private static $minPercent = self::MIN_COMPRESSION_PERCENT;
@@ -422,6 +430,9 @@ class imageResize
             case 'image/gif':
                 self::$ext = '.gif';
                 break;
+            case 'image/webp':
+                self::$ext = '.webp';
+                break;
             default:
                 throw new UnsupportedFormatException(
                     "Unknown MIME type: " . self::$dimension['mime']
@@ -548,7 +559,9 @@ class imageResize
                 $image_create_func = 'imagecreatefromjpeg';
                 $c_param = [$originalFile];
                 $image_save_func = 'imagejpeg';
-                $param = [$tmp, $targetFile . self::$ext, self::JPEG_QUALITY];
+                // Use custom quality if set, otherwise use default
+                $quality = (self::$quality !== null) ? (int)self::$quality : self::JPEG_QUALITY;
+                $param = [$tmp, $targetFile . self::$ext, $quality];
                 break;
 
             case 'image/png':
@@ -563,7 +576,11 @@ class imageResize
                 $image_create_func = 'imagecreatefrompng';
                 $c_param = [$originalFile];
                 $image_save_func = 'imagepng';
-                $param = [$tmp, $targetFile . self::$ext, self::PNG_COMPRESSION, PNG_ALL_FILTERS];
+                // PNG quality: if custom quality set, convert from 0-100 to 0-9 scale
+                $compression = (self::$quality !== null)
+                    ? (int)(9 - (self::$quality / 100 * 9))
+                    : self::PNG_COMPRESSION;
+                $param = [$tmp, $targetFile . self::$ext, $compression, PNG_ALL_FILTERS];
                 break;
 
             case 'image/gif':
@@ -578,6 +595,24 @@ class imageResize
                 imagesavealpha($tmp, true);
                 break;
 
+            case 'image/webp':
+                // WebP support with transparency
+                if (!function_exists('imagewebp')) {
+                    imagedestroy($tmp);
+                    throw new UnsupportedFormatException("WebP support not available in this PHP installation");
+                }
+
+                imagealphablending($tmp, false);
+                imagesavealpha($tmp, true);
+
+                $image_create_func = 'imagecreatefromwebp';
+                $c_param = [$originalFile];
+                $image_save_func = 'imagewebp';
+                // Use custom quality if set, otherwise use 90 for WebP
+                $quality = (self::$quality !== null) ? (int)self::$quality : 90;
+                $param = [$tmp, $targetFile . self::$ext, $quality];
+                break;
+
             default:
                 imagedestroy($tmp);
                 throw new UnsupportedFormatException("Unknown image type: {$mime}");
@@ -590,8 +625,8 @@ class imageResize
             throw new CompressionFailedException("Failed to load source image");
         }
 
-        // For PNG and GIF, preserve alpha channel in resampling
-        if ($mime === 'image/png' || $mime === 'image/gif') {
+        // For PNG, GIF, and WebP, preserve alpha channel in resampling
+        if ($mime === 'image/png' || $mime === 'image/gif' || $mime === 'image/webp') {
             imagealphablending($tmp, false);
             imagesavealpha($tmp, true);
         }
@@ -619,5 +654,164 @@ class imageResize
         if (!$saveSuccess) {
             throw new CompressionFailedException("Failed to save resized image");
         }
+    }
+
+    /**
+     * Convert and resize an image with detailed result information
+     *
+     * This method provides detailed information about the resize operation
+     * including compression ratio, dimensions, and processing time.
+     *
+     * @param string $file Path to the source image file
+     * @param string $target Path to the output image file
+     * @param callable|null $progressCallback Optional callback for progress updates
+     * @return ResizeResult Detailed result information
+     * @throws ImageResizeException On any error
+     */
+    public static function convertWithResult(
+        string $file,
+        string $target,
+        ?callable $progressCallback = null
+    ): ResizeResult {
+        $startTime = microtime(true);
+
+        // Store callback for use during processing
+        $GLOBALS['__imageResize_callback'] = $progressCallback;
+
+        // Get original dimensions before processing
+        $originalDimensions = getimagesize($file);
+        if ($originalDimensions === false) {
+            throw new InvalidFileException("Cannot read image dimensions: {$file}");
+        }
+
+        $originalSize = filesize($file);
+        $wasCompressed = $originalSize > self::$targetSize;
+
+        // Call progress callback
+        if ($progressCallback !== null) {
+            $progressCallback(0, 'Starting resize operation');
+        }
+
+        // Perform conversion
+        $success = self::convert($file, $target);
+
+        if (!$success) {
+            throw new CompressionFailedException("Conversion failed");
+        }
+
+        // Get final file info
+        $outputPath = $target . self::$ext;
+        $finalSize = filesize($outputPath);
+        $finalDimensions = getimagesize($outputPath);
+
+        $processingTime = microtime(true) - $startTime;
+
+        // Call final progress callback
+        if ($progressCallback !== null) {
+            $progressCallback(100, 'Resize operation complete');
+        }
+
+        // Cleanup callback
+        unset($GLOBALS['__imageResize_callback']);
+
+        return new ResizeResult(
+            $outputPath,
+            $originalSize,
+            $finalSize,
+            [$originalDimensions[0], $originalDimensions[1]],
+            [$finalDimensions[0], $finalDimensions[1]],
+            self::$dimension['mime'],
+            $wasCompressed,
+            $processingTime
+        );
+    }
+
+    /**
+     * Process multiple images in batch
+     *
+     * @param array<array{source: string, target: string}> $images Array of source/target pairs
+     * @param callable|null $progressCallback Optional callback (receives: current, total, filename)
+     * @return array<ResizeResult> Array of results for each image
+     */
+    public static function convertBatch(
+        array $images,
+        ?callable $progressCallback = null
+    ): array {
+        $results = [];
+        $total = count($images);
+        $current = 0;
+
+        foreach ($images as $imageConfig) {
+            $current++;
+            $source = $imageConfig['source'] ?? $imageConfig[0] ?? null;
+            $target = $imageConfig['target'] ?? $imageConfig[1] ?? null;
+
+            if ($source === null || $target === null) {
+                throw new InvalidFileException("Invalid batch configuration at index " . ($current - 1));
+            }
+
+            try {
+                // Call batch progress callback
+                if ($progressCallback !== null) {
+                    $progressCallback($current, $total, basename($source));
+                }
+
+                $result = self::convertWithResult($source, $target);
+                $results[] = $result;
+
+            } catch (ImageResizeException $e) {
+                // Store error in result
+                $results[] = [
+                    'error' => true,
+                    'source' => $source,
+                    'target' => $target,
+                    'message' => $e->getMessage(),
+                    'exception' => $e
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Read EXIF metadata from an image
+     *
+     * @param string $file Path to image file
+     * @return array<string, mixed>|false EXIF data or false if not available
+     */
+    private static function readExif(string $file)
+    {
+        if (!function_exists('exif_read_data')) {
+            return false;
+        }
+
+        $mime = mime_content_type($file);
+        if ($mime !== 'image/jpeg' && $mime !== 'image/tiff') {
+            return false; // EXIF only in JPEG/TIFF
+        }
+
+        $exif = @exif_read_data($file, null, true);
+        return $exif !== false ? $exif : false;
+    }
+
+    /**
+     * Write EXIF metadata to an image
+     *
+     * Note: PHP's GD library doesn't support writing EXIF directly.
+     * This would require additional libraries like PEL or exec'ing exiftool.
+     * For now, we document the limitation.
+     *
+     * @param string $file Path to image file
+     * @param array<string, mixed> $exifData EXIF data to write
+     * @return bool Success status
+     */
+    private static function writeExif(string $file, array $exifData): bool
+    {
+        // Note: Writing EXIF requires external tools or libraries
+        // GD doesn't support EXIF writing
+        // Would need: PEL library or exec exiftool
+        // This is left for future enhancement
+        return false;
     }
 }

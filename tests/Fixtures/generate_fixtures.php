@@ -82,5 +82,27 @@ imagejpeg($img, $fixturesDir . 'test-hd.jpg', 90);
 imagedestroy($img);
 echo "✓ Created test-hd.jpg (1920x1080 for compression testing)\n";
 
+// 8. Create a WebP image if supported (400x400)
+if (function_exists('imagewebp')) {
+    $img = imagecreatetruecolor(400, 400);
+    imagealphablending($img, false);
+    imagesavealpha($img, true);
+
+    // Create gradient background
+    for ($y = 0; $y < 400; $y++) {
+        for ($x = 0; $x < 400; $x++) {
+            $alpha = (int)(($x + $y) / 800 * 127);
+            $color = imagecolorallocatealpha($img, 100, 200, 150, $alpha);
+            imagesetpixel($img, $x, $y, $color);
+        }
+    }
+
+    imagewebp($img, $fixturesDir . 'test.webp', 90);
+    imagedestroy($img);
+    echo "✓ Created test.webp (400x400 with transparency)\n";
+} else {
+    echo "⚠ Skipped test.webp (WebP not supported in this PHP installation)\n";
+}
+
 echo "\n✅ All fixtures generated successfully!\n";
 echo "Location: " . realpath($fixturesDir) . "\n";

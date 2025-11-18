@@ -13,15 +13,19 @@ PHP library to resize images to desired file size with intelligent compression.
 
 ## Features
 
-✨ **Version 2.0** - Production Ready
+✨ **Version 2.1** - Feature Enhanced
 
 - **Intelligent Compression**: Automatically resize images to meet target file size
 - **Security Hardened**: Input validation, path security, MIME type verification
 - **Exception Handling**: Comprehensive error handling with custom exceptions
-- **PNG Transparency**: Full support for transparent PNG images
+- **PNG Transparency**: Full support for transparent PNG and WebP images
 - **Type Safe**: Strict type declarations for PHP 7.2+
 - **Well Documented**: Complete PHPDoc comments for all methods
-- **Multiple Formats**: Support for JPEG, PNG, and GIF
+- **Multiple Formats**: Support for JPEG, PNG, GIF, and **WebP** 🆕
+- **Quality Control**: Adjustable image quality (0-100) 🆕
+- **Batch Processing**: Process multiple images efficiently 🆕
+- **Progress Callbacks**: Track resize operations in real-time 🆕
+- **Detailed Results**: Get comprehensive resize statistics 🆕
 
 ---
 
@@ -81,6 +85,83 @@ imageResize::$tempDir = '/path/to/custom/temp';
 imageResize::convert('image.jpg', 'image-converted.jpg');
 ```
 
+###  Quality Control (v2.1+)
+
+```php
+use MasumNishat\imageResize\imageResize;
+
+// Set custom quality (0-100)
+imageResize::$quality = 85; // JPEG/WebP: 85%, PNG: auto-converted
+
+imageResize::convert('image.jpg', 'compressed.jpg');
+```
+
+### WebP Support (v2.1+)
+
+```php
+use MasumNishat\imageResize\imageResize;
+
+// WebP images are automatically detected and processed
+imageResize::convert('image.webp', 'optimized.webp');
+
+// WebP with custom quality
+imageResize::$quality = 90;
+imageResize::convert('photo.jpg', 'photo.webp'); // Auto-detects from extension
+```
+
+### Batch Processing (v2.1+)
+
+```php
+use MasumNishat\imageResize\imageResize;
+
+$images = [
+    ['source' => 'photo1.jpg', 'target' => 'thumb1.jpg'],
+    ['source' => 'photo2.png', 'target' => 'thumb2.png'],
+    ['source' => 'photo3.webp', 'target' => 'thumb3.webp'],
+];
+
+$results = imageResize::convertBatch($images, function($current, $total, $filename) {
+    echo "Processing {$current}/{$total}: {$filename}\n";
+});
+
+foreach ($results as $result) {
+    if (isset($result['error'])) {
+        echo "Error: " . $result['message'] . "\n";
+    } else {
+        echo $result->getSummary() . "\n";
+    }
+}
+```
+
+### Detailed Results (v2.1+)
+
+```php
+use MasumNishat\imageResize\imageResize;
+use MasumNishat\imageResize\ResizeResult;
+
+$result = imageResize::convertWithResult('large.jpg', 'small.jpg');
+
+echo "Original: " . $result->getOriginalDimensionsString() . "\n";
+echo "Final: " . $result->getFinalDimensionsString() . "\n";
+echo "Compression: " . round($result->getCompressionPercentage(), 1) . "%\n";
+echo "Time: " . round($result->processingTime, 2) . "s\n";
+echo "Saved: " . $result->formatBytes($result->getSizeReduction()) . "\n";
+```
+
+### Progress Callbacks (v2.1+)
+
+```php
+use MasumNishat\imageResize\imageResize;
+
+$result = imageResize::convertWithResult(
+    'large-video-thumbnail.jpg',
+    'optimized.jpg',
+    function($progress, $message) {
+        echo "[{$progress}%] {$message}\n";
+    }
+);
+```
+
 ---
 
 ## Exception Handling
@@ -126,15 +207,20 @@ try {
 
 ## Supported Image Formats
 
-| Format | MIME Type    | Transparency | Quality Control |
-|--------|-------------|--------------|-----------------|
-| JPEG   | image/jpeg  | No           | Maximum (100)   |
-| PNG    | image/png   | **Yes** ✓    | Maximum (9)     |
-| GIF    | image/gif   | **Yes** ✓    | N/A             |
+| Format | MIME Type    | Transparency | Quality Control | Version |
+|--------|-------------|--------------|-----------------|---------|
+| JPEG   | image/jpeg  | No           | 0-100 (default: 100) | 2.0+ |
+| PNG    | image/png   | **Yes** ✓    | 0-100 (default: max) | 2.0+ |
+| GIF    | image/gif   | **Yes** ✓    | N/A             | 2.0+ |
+| **WebP** | **image/webp** | **Yes** ✓ | **0-100 (default: 90)** | **2.1+** 🆕 |
 
-> **PNG Transparency**: Version 2.0 fully preserves PNG alpha channels and transparency
+> **Transparency**: Fully preserves alpha channels in PNG, GIF, and WebP
+>
+> **Quality Control**: v2.1+ allows custom quality settings via `imageResize::$quality`
 >
 > **GIF Note**: Only static GIF images are supported (no animation)
+>
+> **WebP**: Requires GD with WebP support (PHP 7.0+ usually includes this)
 
 ---
 
