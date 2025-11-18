@@ -1,92 +1,401 @@
-image-resize-php
-================
+# image-resize-php
 
-PHP library to resize image to desire file size by only one compression.
+PHP library to resize images to desired file size with intelligent compression.
 
-------------------
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![PHP Version](https://img.shields.io/badge/PHP-%3E%3D7.2-8892BF.svg)](https://www.php.net/)
 
-Warning
------
-This is a development package. I encourage not to use in production environment.
+---
 
-Please inform if any bug or security issue or any other problem found.
+## Features
 
-Any suggestion will be taken seriously. 
+✨ **Version 2.0** - Production Ready
 
-Setup
------
+- **Intelligent Compression**: Automatically resize images to meet target file size
+- **Security Hardened**: Input validation, path security, MIME type verification
+- **Exception Handling**: Comprehensive error handling with custom exceptions
+- **PNG Transparency**: Full support for transparent PNG images
+- **Type Safe**: Strict type declarations for PHP 7.2+
+- **Well Documented**: Complete PHPDoc comments for all methods
+- **Multiple Formats**: Support for JPEG, PNG, and GIF
+
+---
+
+## Installation
 
 This package is available through Packagist with the vendor and package identifier the same as this repo.
 
 If using [Composer](https://getcomposer.org/), run following command:
 
-```command
-composer require "masum-nishat/image-resize-php":"^1.1.0"
+```bash
+composer require "masum-nishat/image-resize-php":"^2.0.0"
 ```
 
-> Note: This library uses GD class which do not support resizing animated gif files
+## Requirements
 
-------------------
+- PHP >= 7.2
+- GD extension enabled
+- Write permissions for temp directory
 
-Resize
-------
+> **Note:** This library uses the GD extension which does not support resizing animated GIF files. Only static GIF images are supported.
 
-Only supported resizing param is according to file size. Image dimension will
-be changed and final image will be under 250KB (Default). 
+---
+
+## Quick Start
+
+### Basic Usage
 
 ```php
+use MasumNishat\imageResize\imageResize;
+
+// Resize image to default 250KB
 imageResize::convert('image.jpg', 'image-converted.jpg');
-//or
-imageResize::convert('image.png', 'image-converted.png');
-```
 
-Let the extension detect automatically from mime type: 
-
-```php
-imageResize::convert('image.jpg', 'image-converted');
-//or
+// Extension auto-detection from MIME type
 imageResize::convert('image.png', 'image-converted');
 ```
 
-Declare required maximum size:
+### Custom Target Size
 
 ```php
-imageResize::$targetSize = 300000; //maximum 300KB
+use MasumNishat\imageResize\imageResize;
 
-imageResize::convert('image.jpg', 'image-converted');
-//or
-imageResize::convert('image.png', 'image-converted');
+// Set target size to 300KB
+imageResize::$targetSize = 300000;
+
+imageResize::convert('large-image.jpg', 'compressed-image.jpg');
 ```
 
-This class creat unique temp directory and delete it after using.
-To use custom temp directory and not delete temp components (useful 
-for debugging):
+### Custom Temp Directory
 
 ```php
-imageResize::$tempDir = 'path/to/temp/folder';
+use MasumNishat\imageResize\imageResize;
 
-imageResize::convert('image.jpg', 'image-converted');
-//or
-imageResize::convert('image.png', 'image-converted');
+// Use custom temp directory (useful for debugging)
+imageResize::$tempDir = '/path/to/custom/temp';
+
+imageResize::convert('image.jpg', 'image-converted.jpg');
 ```
 
+---
 
-Supported Image Types
------------
+## Exception Handling
 
-- `IMAGETYPE_JPEG`
-- `IMAGETYPE_PNG`
-- `IMAGETYPE_GIF`
+**Version 2.0** introduces comprehensive exception handling for robust error management.
 
+### Available Exceptions
 
-Quality
--------
+All exceptions extend `ImageResizeException`:
 
-Maximum quality is selected by default. 
+- **`InvalidFileException`** - File doesn't exist, is corrupted, or exceeds size limits
+- **`InvalidPathException`** - Invalid or dangerous file paths (e.g., directory traversal)
+- **`UnsupportedFormatException`** - Unsupported image format or MIME type mismatch
+- **`CompressionFailedException`** - Image compression or processing failed
+- **`InsufficientPermissionsException`** - File permission issues
+- **`InsufficientDiskSpaceException`** - Not enough disk space for operation
 
-Quality change param is not implemented yet;
+### Error Handling Example
 
-Exceptions
---------
+```php
+use MasumNishat\imageResize\imageResize;
+use MasumNishat\imageResize\Exceptions\ImageResizeException;
+use MasumNishat\imageResize\Exceptions\InvalidFileException;
+use MasumNishat\imageResize\Exceptions\InsufficientDiskSpaceException;
 
-Exception handling not implemented yet.
+try {
+    imageResize::$targetSize = 500000; // 500KB
+    imageResize::convert('input.jpg', 'output.jpg');
+    echo "Image resized successfully!";
+
+} catch (InvalidFileException $e) {
+    echo "Invalid file: " . $e->getMessage();
+
+} catch (InsufficientDiskSpaceException $e) {
+    echo "Not enough disk space: " . $e->getMessage();
+
+} catch (ImageResizeException $e) {
+    echo "Resize failed: " . $e->getMessage();
+}
+```
+
+---
+
+## Supported Image Formats
+
+| Format | MIME Type    | Transparency | Quality Control |
+|--------|-------------|--------------|-----------------|
+| JPEG   | image/jpeg  | No           | Maximum (100)   |
+| PNG    | image/png   | **Yes** ✓    | Maximum (9)     |
+| GIF    | image/gif   | **Yes** ✓    | N/A             |
+
+> **PNG Transparency**: Version 2.0 fully preserves PNG alpha channels and transparency
+>
+> **GIF Note**: Only static GIF images are supported (no animation)
+
+---
+
+## Security Features
+
+Version 2.0 includes multiple security enhancements:
+
+### Path Validation
+- Directory traversal prevention (`../` attacks blocked)
+- Real path verification
+- File vs directory validation
+
+### File Validation
+- MIME type verification using both `getimagesize()` and `finfo`
+- File extension validation
+- File size limits (max 500MB source, 100MB target)
+- Empty file detection
+
+### Permission Checks
+- Read permission verification for source files
+- Write permission verification for target directories
+- Secure temp directory creation with `0700` permissions
+
+### Disk Space Management
+- Automatic disk space checks before processing
+- Prevents operations that would fill disk
+
+---
+
+## Configuration
+
+### Constants
+
+You can access the following constants for reference:
+
+```php
+imageResize::DEFAULT_TARGET_SIZE;      // 250000 (250KB)
+imageResize::MIN_TARGET_SIZE;          // 1024 (1KB)
+imageResize::MAX_TARGET_SIZE;          // 104857600 (100MB)
+imageResize::MAX_SOURCE_FILE_SIZE;     // 524288000 (500MB)
+imageResize::JPEG_QUALITY;             // 100
+imageResize::PNG_COMPRESSION;          // 9
+```
+
+### Limits
+
+- **Minimum target size**: 1KB
+- **Maximum target size**: 100MB
+- **Maximum source file**: 500MB
+
+---
+
+## How It Works
+
+The library uses an intelligent binary search algorithm to find the optimal image dimensions:
+
+1. **Validation**: Validates file paths, permissions, and formats
+2. **Analysis**: Checks if compression is needed
+3. **Binary Search**: Iteratively tests different compression levels
+4. **Optimization**: Selects the largest image that meets target size
+5. **Output**: Saves the optimized image with proper format settings
+
+This approach ensures:
+- Minimal quality loss
+- Fast processing
+- Predictable file sizes
+
+---
+
+## What's New in 2.0
+
+### Critical Fixes
+- ✅ Fixed PNG transparency preservation
+- ✅ Improved size calculation accuracy
+- ✅ Fixed temp directory security
+
+### Security Enhancements
+- ✅ Path traversal prevention
+- ✅ MIME type validation
+- ✅ Permission checks
+- ✅ Disk space verification
+- ✅ Cryptographically secure temp directories
+
+### Code Quality
+- ✅ Strict type declarations (`declare(strict_types=1)`)
+- ✅ Comprehensive PHPDoc comments
+- ✅ Proper exception handling
+- ✅ Constants for magic numbers
+- ✅ Improved error messages
+
+### Developer Experience
+- ✅ Better error messages
+- ✅ Type hints for IDE support
+- ✅ Detailed exception information
+- ✅ Comprehensive documentation
+
+---
+
+## Upgrading from 1.x to 2.0
+
+### Breaking Changes
+
+1. **Exceptions**: Methods now throw exceptions instead of silent failures
+2. **Type Safety**: Strict types may require type casting in some cases
+3. **Validation**: Stricter path and file validation may reject previously accepted inputs
+
+### Migration Guide
+
+**Before (v1.x):**
+```php
+// No error handling
+imageResize::convert('image.jpg', 'output.jpg');
+```
+
+**After (v2.0):**
+```php
+// With proper error handling
+try {
+    imageResize::convert('image.jpg', 'output.jpg');
+} catch (ImageResizeException $e) {
+    // Handle error
+    error_log($e->getMessage());
+}
+```
+
+---
+
+## Troubleshooting
+
+### "Source file does not exist"
+- Verify the file path is correct
+- Check file permissions
+- Ensure path doesn't contain `../`
+
+### "Unsupported image format"
+- Only JPEG, PNG, and GIF are supported
+- Verify file is not corrupted
+- Check MIME type matches file extension
+
+### "Insufficient disk space"
+- Free up disk space (requires 3x source file size + target size)
+- Check disk quotas
+
+### "Target directory is not writable"
+- Verify write permissions on output directory
+- Check directory exists
+
+---
+
+## Examples
+
+### Process Multiple Images
+
+```php
+use MasumNishat\imageResize\imageResize;
+use MasumNishat\imageResize\Exceptions\ImageResizeException;
+
+$images = ['photo1.jpg', 'photo2.png', 'photo3.gif'];
+
+foreach ($images as $image) {
+    try {
+        imageResize::convert($image, 'compressed_' . $image);
+        echo "✓ Processed: $image\n";
+    } catch (ImageResizeException $e) {
+        echo "✗ Failed: $image - " . $e->getMessage() . "\n";
+    }
+}
+```
+
+### Different Sizes for Different Formats
+
+```php
+use MasumNishat\imageResize\imageResize;
+
+// Smaller size for thumbnails
+imageResize::$targetSize = 50000; // 50KB
+imageResize::convert('profile.jpg', 'thumbnail.jpg');
+
+// Larger size for gallery images
+imageResize::$targetSize = 500000; // 500KB
+imageResize::convert('gallery.jpg', 'gallery-optimized.jpg');
+```
+
+---
+
+## Contributing
+
+Contributions are welcome! Please see [CLAUDE.md](CLAUDE.md) for the development roadmap and implementation plan.
+
+### Reporting Issues
+
+Please report bugs and security issues through the GitHub issue tracker.
+
+---
+
+## Development Roadmap
+
+See [CLAUDE.md](CLAUDE.md) for the complete development roadmap including:
+- Testing infrastructure
+- Additional features
+- Performance optimizations
+- API enhancements
+
+---
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+
+---
+
+## Author
+
+**Al Masum Nishat**
+- Email: masum.nishat21@gmail.com
+- GitHub: [@MasumNishat](https://github.com/MasumNishat)
+
+---
+
+## Changelog
+
+### [2.0.0] - 2025-11-18
+
+#### Added
+- Comprehensive exception handling system
+- PNG transparency preservation
+- GIF transparency support
+- Path validation and directory traversal prevention
+- MIME type validation with double-checking
+- File permission checks
+- Disk space verification
+- Secure temp directory creation
+- Type hints and strict types
+- Constants for configuration values
+- Extensive PHPDoc documentation
+
+#### Fixed
+- PNG transparency loss during resize
+- Size calculation accuracy
+- Insecure temp directory creation
+- Missing input validation
+- Silent error failures
+
+#### Changed
+- **BREAKING**: Now throws exceptions instead of silent failures
+- **BREAKING**: Strict type enforcement
+- Improved error messages
+- Better security throughout
+
+#### Security
+- Added path traversal prevention
+- Added MIME type spoofing protection
+- Added file size limits
+- Secure random temp directory names
+- Permission validation
+
+### [1.1.0] - Previous Release
+- Initial stable release
+- Basic resize functionality
+- PSR-4 autoloading support
+
+---
+
+## Support
+
+If you find this library helpful, please ⭐ star the repository!
+
+For questions or support, please open an issue on GitHub.
